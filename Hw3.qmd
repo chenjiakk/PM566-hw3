@@ -1,0 +1,80 @@
+---
+title: "Hw 3"
+author: "Chenjia Kuang"
+format: html
+editor: visual
+embed-resources: true
+---
+
+```{r}
+library('readr')
+
+data <- read_csv("https://raw.githubusercontent.com/USCbiostats/data-science-data/master/03_pubmed/pubmed.csv")
+```
+
+#### Tokenize the abstracts and count the number of each token. Do you see anything interesting? Does removing stop words change what tokens appear as the most frequent? What are the 5 most common tokens for each search term after removing stopwords?
+
+```{r}
+data %>%
+  unnest_tokens(word, abstract) %>%
+  count(word, sort=TRUE) %>%
+  top_n(20, n) %>%
+  ggplot(aes(x = n, y = fct_reorder(word, n))) +
+  geom_col() +
+  labs(x = "Count", y = "Word", title = "Top 20 Frequency Words in PubMed Abstracts")
+```
+
+From this frequency graph, we observe that several stopwords appear frequently, which disrupts our analysis; hence, we need to exclude these words. Additionally, the graph reveals the terms 'covid' and '19,' which align with our assumption, given that 'covid' is the term with the highest frequency in our data.
+
+```{r}
+#remove stopwords
+data %>%
+  unnest_tokens(word, abstract) %>%
+  anti_join(stop_words) %>%
+  count(word, sort = TRUE) %>%
+  top_n(5, n) %>%
+  ggplot(aes(x = n, y = fct_reorder(word, n))) + 
+  geom_col()
+```
+
+After removed stop words "covid" changed appear as the most frequent. Covid, 19, patients, cancer, and prostate are the 5 most frequently used word after we removed the stop word. It give us a better idea of what the text is about.
+
+#### Tokenize the abstracts into bigrams. Find the 10 most common bigrams and visualize them with ggplot2.
+
+```{r}
+#tokenize into bi-grams
+data %>%
+  unnest_ngrams(token, abstract, n = 2) %>%
+  count(token, sort=TRUE) %>%
+  top_n(10, n) %>%
+  ggplot(aes(x = n, y = fct_reorder(token, n))) +
+  geom_col() +
+  labs(x = "Count", y = "Bigrams", title = "Top 10 Bigrams in PubMed Abstracts")
+```
+
+The 10 most common bigrams are covid 19, of the, in the, prostate cancer, pre eclampsia, patients with, of covid, and the, to the, and of prostate. The most frequently used bigrams, covid 19, appear almost 7000 times.
+
+#### Calculate the TF-IDF value for each word-search term combination (here you want the search term to be the "document"). What are the 5 tokens from each search term with the highest TF-IDF value? How are the results different from the answers you got in question 1?
+
+```{r}
+tf_idf_results <- data %>% 
+  unnest_tokens(token, abstract) %>% 
+  count(term, token) %>% 
+  bind_tf_idf(token, term, n) %>% 
+  group_by(term) %>%
+  top_n(5, tf_idf) %>% 
+  ungroup() %>% 
+  arrange(term, desc(tf_idf))
+
+
+tf_idf_results %>%
+  ggplot(aes(x = reorder_within(token, tf_idf, term), y = tf_idf)) + 
+  geom_col() +
+  coord_flip() +
+  scale_x_reordered() +
+  facet_wrap(~term, scales = "free_y") +
+  labs(x = "Token", y = "TF-IDF Value", title = "Top 5 Tokens by TF-IDF Value for Each Search Term") +
+  theme_minimal()
+```
+
+The primary distinction between this plot and Question 1 lies in our discovery of the most frequent tokens associated with the other four terms, as opposed to focusing solely on "covid". Because "covid" is the most common token in our data, it partially obstructs the analysis of other tokens, which leads to this variation. For instance, we discovered through the TF-IDF plot that the token "eclampsia" had a significant correlation with preeclampsia.
